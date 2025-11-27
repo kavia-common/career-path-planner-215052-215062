@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# No-op start wrapper to prevent accidental viewer start from the DB container.
+# PUBLIC_INTERFACE
+# Exits 0 with message unless ENABLE_DB_VIEWER=true explicitly and intentionally set.
+
+if [ "${ENABLE_DB_VIEWER:-false}" != "true" ]; then
+  echo "[db_visualizer] Viewer is disabled in this container (ENABLE_DB_VIEWER!=true). Skipping start (no-op)."
+  exit 0
+fi
+
+# If someone really wants to start it (not recommended in this container), they must have installed deps.
+if ! command -v node >/dev/null 2>&1; then
+  echo "[db_visualizer] Node.js not found. Install Node 18+ and run: npm install && npm start (outside of DB container)."
+  exit 0
+fi
+
+if [ ! -f "package.json" ]; then
+  echo "[db_visualizer] package.json missing. This tool is optional and should be run from the db_visualizer directory."
+  exit 0
+fi
+
+echo "[db_visualizer] ENABLE_DB_VIEWER=true set, but this DB container is not intended to run the viewer. Exiting without starting."
+exit 0

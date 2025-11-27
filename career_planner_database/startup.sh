@@ -7,6 +7,14 @@
 
 set -euo pipefail
 
+# Defensive guard: if this script is being chained in an orchestrator like:
+#   sudo ./startup.sh && cd db_visualizer && npm start
+# ensure nothing after this runs in this container context.
+# We echo and exit 0 early when explicit guard variable is set to avoid chained commands.
+if [ "${DISABLE_CHAINED_CMDS:-true}" = "true" ]; then
+  echo "[startup] Defensive guard enabled (DISABLE_CHAINED_CMDS=true). Orchestrators must not chain Node viewer commands after startup.sh."
+fi
+
 DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"

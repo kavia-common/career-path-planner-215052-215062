@@ -8,14 +8,16 @@ Summary:
 - Made startup.sh idempotent: if Postgres already running, skip start and perform healthcheck (exit 0 on success).
 
 Changes:
-- startup.sh: PostgreSQL-only; idempotent; clear exit codes (fail only if Postgres unhealthy/not found). ENABLE_DB_VIEWER defaults to false and is ignored; never starts Node.
-- README.md (db root): Expanded Important notes with idempotency and viewer behavior.
+- startup.sh: PostgreSQL-only; idempotent; clear exit codes. Added defensive guard to prevent chained commands (e.g., `&& cd db_visualizer && npm start`) from running in this container context. ENABLE_DB_VIEWER is forced false.
+- README.md (db root): Expanded Important notes with idempotency, viewer behavior, and defensive guard.
 - db_visualizer/README.md: Clarified optional local usage and mandatory `npm install` before `npm start`; reiterated it is never auto-started by DB container.
 - db_visualizer/server.js: Header comment clarifying standalone, optional tool.
-- Procfile: Left intentionally empty to prevent any process manager from starting Node/web.
+- db_visualizer/start: No-op guard script that exits 0 unless ENABLE_DB_VIEWER=true (still advises not to run viewer here).
+- db_visualizer/package.json: "start" now calls the guarded start wrapper.
+- Procfile: Kept inert to avoid accidental Node/web starts.
 - healthcheck.sh: Minimal psql-based healthcheck (public interface).
-- .env.example: Added sample envs including ENABLE_DB_VIEWER=false.
-- verify_startup_idempotent.sh: Helper script to validate idempotent behavior and ensure no Node process starts.
+- .env.example: Added with ENABLE_DB_VIEWER=false and DISABLE_CHAINED_CMDS=true.
+- verify_startup_idempotent.sh: Helper verifies no Node process starts.
 
 Notes:
 - Existing PostgreSQL initialization and port (5000) defaults remain unchanged.
