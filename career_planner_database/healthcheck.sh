@@ -36,19 +36,19 @@ if [ ! -x "${PG_BIN}/psql" ]; then
   exit 2
 fi
 
-# Try pg_isready with more retries for safety
+# Quick readiness pre-check (pg_isready), but do NOT exit success solely based on this; we must validate psql connectivity
 if [ -x "${PG_BIN}/pg_isready" ]; then
-  for i in $(seq 1 45); do
+  for i in $(seq 1 20); do
     if "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
-      echo "[healthcheck] DB health: OK (pg_isready) on attempt ${i}"
-      exit 0
+      echo "[healthcheck] pg_isready OK on attempt ${i}; verifying psql connectivity..."
+      break
     fi;
-    echo "[healthcheck] Waiting for pg_isready OK (${i}/45) at ${PGHOST}:${PGPORT}"
+    echo "[healthcheck] Waiting for pg_isready OK (${i}/20) at ${PGHOST}:${PGPORT}"
     sleep 2
   done
 fi
 
-# Fallback to simple psql ping with more retries
+# Mandatory psql connectivity check with more retries
 for i in $(seq 1 30); do
   PGPASSWORD="${DB_PASSWORD}" "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1
   EC=$?
@@ -57,6 +57,7 @@ for i in $(seq 1 30); do
     exit 0
   fi
   echo "[healthcheck] psql ping failed (attempt ${i}/30) to ${PGHOST}:${PGPORT}/${DB_NAME} as ${DB_USER}"
+  echo "[healthcheck] Hint: ensure DB_USER/DB_NAME/DB_PASSWORD match server credentials and SCRAM password is set; port=${PGPORT}"
   sleep 2
 done
 

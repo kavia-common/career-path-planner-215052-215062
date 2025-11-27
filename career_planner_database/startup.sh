@@ -156,24 +156,75 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
-# Create DB and role idempotently
-echo "[startup] Ensuring database and role exist..."
-sudo -u postgres "${PG_BIN}/createdb" -h "${PGHOST}" -p "${PGPORT}" "${DB_NAME}" >/dev/null 2>&1 || echo "[startup] Database '${DB_NAME}' already exists"
-
-sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d postgres <<EOF
-DO \$\$
+# Create role and database idempotently with correct ownership and SCRAM password
+echo "[startup] Ensuring role '${DB_USER}' and database '${DB_NAME}' exist (and are usable over SCRAM)..."
+sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d postgres <<'EOSQL'
+DO $$
+DECLARE
+  v_user text := current_setting('app.db_user', true);
+  v_db   text := current_setting('app.db_name', true);
+  v_pwd  text := current_setting('app.db_password', true);
 BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_USER}') THEN
-    CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASSWORD}';
+  -- Read env via GUC fallback (provided below via -v), avoid SQL injection by not interpolating directly
+  IF v_user IS NULL OR v_user = '' THEN
+    RAISE EXCEPTION 'DB user GUC not provided';
   END IF;
-  ALTER ROLE ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';
+  IF v_db IS NULL OR v_db = '' THEN
+    RAISE EXCEPTION 'DB name GUC not provided';
+  END IF;
+
+  -- Create role if missing; always ensure LOGIN and reset password for SCRAM
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_user) THEN
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', v_user, coalesce(v_pwd,''));
+  END IF;
+  -- Ensure the role can login and has the expected password (if provided)
+  EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', v_user, coalesce(v_pwd,''));
+
+  -- Create database if missing, set owner
+  IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = v_db) THEN
+    EXECUTE format('CREATE DATABASE %I OWNER %I', v_db, v_user);
+  END IF;
 END
-\$\$;
+$$;
+EOSQL
+EC=$?
+if [ $EC -ne 0 ]; then
+  # Re-run with GUCs to supply env variables safely
+  sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d postgres \
+    -v ON_ERROR_STOP=1 \
+    -c "SET app.db_user TO '${DB_USER}'; SET app.db_name TO '${DB_NAME}'; SET app.db_password TO '${DB_PASSWORD}';" \
+    -f <(cat <<'EOSQL'
+DO $$
+DECLARE
+  v_user text := current_setting('app.db_user', true);
+  v_db   text := current_setting('app.db_name', true);
+  v_pwd  text := current_setting('app.db_password', true);
+BEGIN
+  IF v_user IS NULL OR v_user = '' THEN
+    RAISE EXCEPTION 'DB user GUC not provided';
+  END IF;
+  IF v_db IS NULL OR v_db = '' THEN
+    RAISE EXCEPTION 'DB name GUC not provided';
+  END IF;
 
-GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
-EOF
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_user) THEN
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', v_user, coalesce(v_pwd,''));
+  END IF;
+  EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', v_user, coalesce(v_pwd,''));
 
-# Ensure schema permissions
+  IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = v_db) THEN
+    EXECUTE format('CREATE DATABASE %I OWNER %I', v_db, v_user);
+  END IF;
+END
+$$;
+EOSQL
+) || {
+    echo "[startup][ERROR] Failed to ensure role/database."
+    exit 2
+  }
+fi
+
+# Grant privileges and defaults
 sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d "${DB_NAME}" <<EOF
 GRANT USAGE, CREATE ON SCHEMA public TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${DB_USER};
