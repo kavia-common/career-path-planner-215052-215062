@@ -19,11 +19,17 @@ fi
 DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
-DB_PORT="${DB_PORT:-5000}"
-export PGPORT="${PGPORT:-${DB_PORT}}"
-PGHOST="127.0.0.1"
+
+# Explicit readiness constants to avoid platform env ambiguity
+READINESS_HOST="127.0.0.1"
+READINESS_PORT="5000"
+
+export PGHOST="${READINESS_HOST}"
+export PGPORT="${READINESS_PORT}"
+
+echo "[startup] READINESS_PORT=${READINESS_PORT}"
 echo "[startup] Config: host=${PGHOST} port=${PGPORT} db=${DB_NAME} user=${DB_USER}"
-echo "[startup] Readiness target: PostgreSQL on ${PGHOST}:${PGPORT} (PGPORT). No readiness on port 3020."
+echo "[startup] Readiness target: PostgreSQL on ${PGHOST}:${PGPORT}. No readiness on port 3020."
 
 # Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"
@@ -91,13 +97,13 @@ POSTGRES_PID=$!
 # Wait until ready with extended retries to avoid flapping
 echo "[startup] Waiting for PostgreSQL to become ready at ${PGHOST}:${PGPORT}..."
 ready=0
-for i in $(seq 1 60); do
+for i in $(seq 1 90); do
   if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
     echo "[startup] PostgreSQL is ready (pg_isready) on attempt ${i}."
     ready=1
     break
   fi
-  echo "[startup] ... waiting for readiness (${i}/60) at ${PGHOST}:${PGPORT}"
+  echo "[startup] ... waiting for readiness (${i}/90) at ${PGHOST}:${PGPORT}"
   sleep 2
 done
 
@@ -142,7 +148,7 @@ EOF
 # Save connection helper
 echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@${PGHOST}:${PGPORT}/${DB_NAME}" > db_connection.txt
 
-# Write inert viewer env for local-only use
+# Write inert viewer env for local-only use (optional dev helper)
 mkdir -p db_visualizer
 cat > db_visualizer/postgres.env <<EOF
 export POSTGRES_URL="postgresql://localhost:${PGPORT}/${DB_NAME}"

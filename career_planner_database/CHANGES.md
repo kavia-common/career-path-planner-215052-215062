@@ -15,8 +15,8 @@ Changes:
 - db_visualizer/start: No-op guard script that exits 0 unless ENABLE_DB_VIEWER=true (still advises not to run viewer here).
 - db_visualizer/package.json: "start" now invokes server_guard.js which exits 0 unless ENABLE_DB_VIEWER=true AND RUN_IN_SEPARATE_CONTAINER=true, and still refuses to start in DB container.
 - db_visualizer/server_guard.js: New defensive script; always exits 0 in DB container context.
-- Procfile: Kept inert to avoid accidental Node/web starts.
-- healthcheck.sh: Minimal psql-based healthcheck (public interface).
+- Procfile: Kept inert to avoid accidental Node/web starts. No "web" process defined; PostgreSQL only on port 5000.
+- healthcheck.sh: Minimal psql-based healthcheck (public interface) with explicit PGHOST=127.0.0.1 and READINESS_PORT=5000 and increased retries.
 - .env.example: Added with ENABLE_DB_VIEWER=false and DISABLE_CHAINED_CMDS=true.
 - verify_startup_idempotent.sh: Helper verifies no Node process starts.
 

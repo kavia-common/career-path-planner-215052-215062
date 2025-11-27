@@ -5,8 +5,8 @@ This folder contains the database schema, row-level security (RLS), and a data i
 Important:
 - This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
 - Idempotent startup: if PostgreSQL is already running, startup.sh skips start and performs a healthcheck, exiting 0 on success.
-- Healthcheck: use ./healthcheck.sh (pg_isready → psql) targeting 127.0.0.1:${PGPORT:-5000}. Readiness is based on the PostgreSQL port only; there is no check on 3020.
-- Explicit logs: startup.sh and healthcheck.sh print the exact PGPORT used for readiness and explicitly state that no 3020 checks exist.
+- Healthcheck: use ./healthcheck.sh (pg_isready → psql) targeting 127.0.0.1:5000. Readiness is based on the PostgreSQL port only; there is no check on 3020.
+- Explicit logs: startup.sh and healthcheck.sh print READINESS_PORT=5000 and explicitly state that no 3020 checks exist.
 - No references to port 3020 exist; readiness is strictly the PostgreSQL port (${PGPORT:-5000}). EXPOSED_PORTS emits this value for platforms that require it.
 - KEEP_ALIVE: by default KEEP_ALIVE=true, so after a successful healthcheck, startup.sh enters a lightweight supervise loop to keep the container alive on platforms that expect a long-lived process. Set KEEP_ALIVE=false to have the script exit 0 immediately after healthcheck (useful for CI tests).
 - ENABLE_DB_VIEWER and RUN_IN_SEPARATE_CONTAINER both default to false. npm start in db_visualizer is a guarded no-op unless BOTH are true AND you run in a separate viewer container.

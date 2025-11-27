@@ -1,3 +1,4 @@
-${PGPORT:-5000}
+5000
 # This file is read by the platform to discover the effective exposed port for readiness.
-# It expands to PGPORT (default 5000). There are no references to 3020; readiness is PostgreSQL-only.
+# Explicit constant to avoid platforms that don't expand variables in metadata files.
+# Readiness is PostgreSQL-only on port 5000.
