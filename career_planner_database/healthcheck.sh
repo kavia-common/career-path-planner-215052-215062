@@ -1,8 +1,9 @@
 #!/bin/bash
 # PUBLIC_INTERFACE
-# Minimal healthcheck for PostgreSQL in this container.
+# Minimal healthcheck for PostgreSQL in this container (idempotent safe).
 # Exits 0 when psql can connect and run SELECT 1; non-zero otherwise.
 # Env vars are aligned with startup.sh defaults.
+
 DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
