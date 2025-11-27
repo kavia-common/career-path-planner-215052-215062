@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GFBamuenQqfoa3CFeIA02LwhRJFvZIb6JpZ2sKdaDEa54eEAZRbdMIYUx9Sf1LT
+\restrict q26boW26OJGa5YSSSnULDRsoLXQaOVkCpXScj6C7DDZKIy9dNfbuJ4sp5TgGDvq
 
 -- Dumped from database version 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1)
@@ -28,9 +28,9 @@ CREATE DATABASE myapp WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDE
 
 ALTER DATABASE myapp OWNER TO postgres;
 
-\unrestrict GFBamuenQqfoa3CFeIA02LwhRJFvZIb6JpZ2sKdaDEa54eEAZRbdMIYUx9Sf1LT
+\unrestrict q26boW26OJGa5YSSSnULDRsoLXQaOVkCpXScj6C7DDZKIy9dNfbuJ4sp5TgGDvq
 \connect myapp
-\restrict GFBamuenQqfoa3CFeIA02LwhRJFvZIb6JpZ2sKdaDEa54eEAZRbdMIYUx9Sf1LT
+\restrict q26boW26OJGa5YSSSnULDRsoLXQaOVkCpXScj6C7DDZKIy9dNfbuJ4sp5TgGDvq
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -89,5 +89,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GFBamuenQqfoa3CFeIA02LwhRJFvZIb6JpZ2sKdaDEa54eEAZRbdMIYUx9Sf1LT
+\unrestrict q26boW26OJGa5YSSSnULDRsoLXQaOVkCpXScj6C7DDZKIy9dNfbuJ4sp5TgGDvq
 
