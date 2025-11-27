@@ -2,20 +2,18 @@
 # PUBLIC_INTERFACE
 # Hardened PostgreSQL-only startup script (idempotent).
 # - Starts ONLY PostgreSQL; never starts Node.js viewer.
-# - If Postgres is already running, skip start and perform healthcheck then # Final note: Do NOT chain commands after this script (e.g., '&& cd db_visualizer && npm start').
-# Orchestrators must execute only this script for database startup.
-# This script ends here with exit 0 to prevent any follow-up command from running in this container context.
-exit 0.
+# - If Postgres is already running, skip start and perform healthcheck.
 # - Clear exit codes: only fail when PostgreSQL is unhealthy or not found.
+# Guard note: Orchestrators should not chain Node viewer commands after this script.
 
 set -euo pipefail
 
 # Defensive guard: if this script is being chained in an orchestrator like:
 #   sudo ./startup.sh && cd db_visualizer && npm start
-# ensure nothing after this runs in this container context.
-# We echo and exit 0 early when explicit guard variable is set to avoid chained commands.
+# We explicitly print a guard notice. This script itself does not start Node and
+# will exit 0 cleanly after its own work; any chained Node commands are out-of-scope.
 if [ "${DISABLE_CHAINED_CMDS:-true}" = "true" ]; then
-  echo "[startup] Defensive guard enabled (DISABLE_CHAINED_CMDS=true). Orchestrators must not chain Node viewer commands after startup.sh."
+  echo "[startup] Defensive guard enabled (DISABLE_CHAINED_CMDS=true). Do not chain Node viewer commands after startup.sh."
 fi
 
 DB_NAME="${DB_NAME:-myapp}"
@@ -158,4 +156,5 @@ if [ "${ENABLE_DB_VIEWER}" = "true" ]; then
   echo "[startup] To use it, run 'npm install && npm start' from db_visualizer in a separate process/container."
 fi
 
+# Clean success exit to prevent chained commands within this script context.
 exit 0
