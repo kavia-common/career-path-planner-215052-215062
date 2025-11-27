@@ -74,4 +74,9 @@ Re-running is safe (idempotent upserts).
 ## Troubleshooting
 - Ensure your Supabase service role key is set. If unauthorized errors occur, verify the key and the REST URL.
 - For header variations in spreadsheets, the parser supports common variants; inspect `mapping_specs.md` for expected columns.
+- Readiness/health is strictly PostgreSQL on ${PGPORT:-5000}. Verify with:
+  - ./healthcheck.sh (prints host:port)
+  - pg_isready -h 127.0.0.1 -p ${PGPORT:-5000}
+  - psql "postgresql://appuser:dbuser123@127.0.0.1:${PGPORT:-5000}/myapp" -c "SELECT 1;"
+- There should be no checks on port 3020. If your platform expects a metadata file, see EXPOSED_PORTS which outputs ${PGPORT:-5000}.
 

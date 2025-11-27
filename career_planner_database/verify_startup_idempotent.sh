@@ -13,10 +13,10 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "[verify] Running initial healthcheck (may fail if DB not up yet)..."
 bash "${ROOT_DIR}/healthcheck.sh" || echo "[verify] Initial healthcheck failed (expected if DB not running)"
 
-echo "[verify] First startup.sh run..."
+echo "[verify] First startup.sh run (PGHOST=127.0.0.1 PGPORT=${PGPORT:-${DB_PORT:-5000}})..."
 bash "${ROOT_DIR}/startup.sh"
 
-echo "[verify] Second startup.sh run (should be idempotent and exit 0)..."
+echo "[verify] Second startup.sh run (should be idempotent and exit 0; PGPORT=${PGPORT:-${DB_PORT:-5000}})..."
 bash "${ROOT_DIR}/startup.sh"
 
 echo "[verify] Ensuring no Node viewer process was started..."

@@ -22,6 +22,7 @@ DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
 DB_PORT="${DB_PORT:-5000}"
 export PGPORT="${PGPORT:-${DB_PORT}}"
 PGHOST="127.0.0.1"
+echo "[startup] Config: host=${PGHOST} port=${PGPORT} db=${DB_NAME} user=${DB_USER}"
 
 # Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"
@@ -42,13 +43,14 @@ echo "[startup] Found PostgreSQL version: ${PG_VERSION}"
 
 # Healthcheck helper
 psql_ping() {
+  echo "[startup][debug] psql ping to ${PGHOST}:${PGPORT}/${DB_NAME} as ${DB_USER}"
   PGPASSWORD="${DB_PASSWORD}" "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1
   return $?
 }
 
 # If Postgres is already running, do not try to start it again (idempotent behavior)
 if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
-  echo "[startup] PostgreSQL already running on port ${PGPORT}. Performing healthcheck..."
+  echo "[startup] PostgreSQL already running on ${PGHOST}:${PGPORT}. Performing healthcheck..."
   if ! psql_ping; then
     echo "[startup][ERROR] PostgreSQL is running but psql connectivity to ${DB_NAME} as ${DB_USER} failed."
     exit 2
@@ -78,28 +80,28 @@ if [ ! -f "/var/lib/postgresql/data/PG_VERSION" ]; then
 fi
 
 # Start PostgreSQL (foregrounded in background)
-echo "[startup] Starting PostgreSQL server..."
+echo "[startup] Starting PostgreSQL server on ${PGHOST}:${PGPORT}..."
 if ! sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${PGPORT}" & then
   echo "[startup][ERROR] failed to spawn postgres"
   exit 1
 fi
 POSTGRES_PID=$!
 
-# Wait until ready
-echo "[startup] Waiting for PostgreSQL to become ready..."
+# Wait until ready with extended retries to avoid flapping
+echo "[startup] Waiting for PostgreSQL to become ready at ${PGHOST}:${PGPORT}..."
 ready=0
-for i in $(seq 1 20); do
+for i in $(seq 1 60); do
   if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
-    echo "[startup] PostgreSQL is ready."
+    echo "[startup] PostgreSQL is ready (pg_isready) on attempt ${i}."
     ready=1
     break
   fi
-  echo "[startup] ... waiting (${i}/20)"
+  echo "[startup] ... waiting for readiness (${i}/60) at ${PGHOST}:${PGPORT}"
   sleep 2
 done
 
 if [ "$ready" -ne 1 ]; then
-  echo "[startup][ERROR] PostgreSQL failed to become ready on port ${PGPORT}"
+  echo "[startup][ERROR] PostgreSQL failed to become ready on ${PGHOST}:${PGPORT}"
   # Ensure we don't leave orphan process if it started
   if ps -p ${POSTGRES_PID} >/dev/null 2>&1; then
     kill ${POSTGRES_PID} >/dev/null 2>&1 || true
@@ -149,9 +151,9 @@ export POSTGRES_DB="${DB_NAME}"
 export POSTGRES_PORT="${PGPORT}"
 EOF
 
-# Final healthcheck
+# Final healthcheck with visibility
 if ! psql_ping; then
-  echo "[startup][ERROR] PostgreSQL healthcheck failed (psql ping)"
+  echo "[startup][ERROR] PostgreSQL healthcheck failed (psql ping to ${PGHOST}:${PGPORT}/${DB_NAME})"
   exit 2
 fi
 
