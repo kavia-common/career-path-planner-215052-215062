@@ -4,8 +4,7 @@
   "description": "Simple database viewer for PostgreSQL, MySQL, SQLite, and MongoDB (optional; not started by DB container)",
   "main": "server.js",
   "scripts": {
-    "start": "bash ./start",
-    "dev": "nodemon server.js"
+    "start": "node server_guard.js"
   },
   "dependencies": {
     "express": "^4.18.2",

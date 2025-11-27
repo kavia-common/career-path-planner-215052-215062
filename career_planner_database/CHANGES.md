@@ -13,7 +13,8 @@ Changes:
 - db_visualizer/README.md: Clarified optional local usage and mandatory `npm install` before `npm start`; reiterated it is never auto-started by DB container.
 - db_visualizer/server.js: Header comment clarifying standalone, optional tool.
 - db_visualizer/start: No-op guard script that exits 0 unless ENABLE_DB_VIEWER=true (still advises not to run viewer here).
-- db_visualizer/package.json: "start" now calls the guarded start wrapper.
+- db_visualizer/package.json: "start" now invokes server_guard.js which exits 0 unless ENABLE_DB_VIEWER=true AND RUN_IN_SEPARATE_CONTAINER=true, and still refuses to start in DB container.
+- db_visualizer/server_guard.js: New defensive script; always exits 0 in DB container context.
 - Procfile: Kept inert to avoid accidental Node/web starts.
 - healthcheck.sh: Minimal psql-based healthcheck (public interface).
 - .env.example: Added with ENABLE_DB_VIEWER=false and DISABLE_CHAINED_CMDS=true.

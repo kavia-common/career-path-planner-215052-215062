@@ -2,7 +2,10 @@
 # PUBLIC_INTERFACE
 # Hardened PostgreSQL-only startup script (idempotent).
 # - Starts ONLY PostgreSQL; never starts Node.js viewer.
-# - If Postgres is already running, skip start and perform healthcheck then exit 0.
+# - If Postgres is already running, skip start and perform healthcheck then # Final note: Do NOT chain commands after this script (e.g., '&& cd db_visualizer && npm start').
+# Orchestrators must execute only this script for database startup.
+# This script ends here with exit 0 to prevent any follow-up command from running in this container context.
+exit 0.
 # - Clear exit codes: only fail when PostgreSQL is unhealthy or not found.
 
 set -euo pipefail

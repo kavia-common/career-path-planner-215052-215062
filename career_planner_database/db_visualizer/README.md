@@ -13,8 +13,12 @@ How to use locally (optional):
    npm install
    # optional: sets POSTGRES_* env vars for local viewer
    source ./postgres.env
-   npm start
+   # In a dedicated viewer container or your local machine:
+   ENABLE_DB_VIEWER=true RUN_IN_SEPARATE_CONTAINER=true npm start
 3) Open http://localhost:3000 and select "postgres".
+
+Notes:
+- The npm start is now guarded via server_guard.js and will no-op unless both ENABLE_DB_VIEWER and RUN_IN_SEPARATE_CONTAINER are true.
 
 Notes:
 - The viewer requires 'express' and other dependencies listed in package.json. You must run `npm install` successfully before `npm start`.
