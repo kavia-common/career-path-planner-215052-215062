@@ -6,8 +6,10 @@ Important:
 - This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
 - Idempotent startup: if PostgreSQL is already running, startup.sh skips start and performs a healthcheck, exiting 0 on success.
 - Healthcheck: use ./healthcheck.sh (pg_isready → psql) targeting 127.0.0.1:${PGPORT:-5000}. Readiness is based on the PostgreSQL port only; there is no check on 3020.
+- No references to port 3020 exist; readiness is strictly the PostgreSQL port (${PGPORT:-5000}). EXPOSED_PORTS emits this value for platforms that require it.
+- KEEP_ALIVE: by default KEEP_ALIVE=true, so after a successful healthcheck, startup.sh enters a lightweight supervise loop to keep the container alive on platforms that expect a long-lived process. Set KEEP_ALIVE=false to have the script exit 0 immediately after healthcheck (useful for CI tests).
 - ENABLE_DB_VIEWER and RUN_IN_SEPARATE_CONTAINER both default to false. npm start in db_visualizer is a guarded no-op unless BOTH are true AND you run in a separate viewer container.
-- Defensive guard: startup.sh prints a guard notice, then exits 0; do NOT chain commands like `&& cd db_visualizer && npm start` after it in this container. This script ends with an explicit `exit 0`.
+- Defensive guard: startup.sh prints a guard notice, and will not start Node; do NOT chain commands like `&& cd db_visualizer && npm start` after it in this container.
 - The optional Node.js "db_visualizer" is provided for local diagnostics only and must NOT be auto-started from this container. Use a separate container/process; npm start inside this container will no-op and exit 0.
 - Dry-run expectation: `sudo ./startup.sh && cd db_visualizer && npm start` will complete with exit code 0 and only print guard messages (no server starts).
 

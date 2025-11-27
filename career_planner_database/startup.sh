@@ -168,5 +168,23 @@ if [ "${ENABLE_DB_VIEWER}" = "true" ]; then
   echo "[startup] To use it, run 'npm install && npm start' from db_visualizer in a separate process/container."
 fi
 
+# Keep the container alive if required by the platform.
+# Default KEEP_ALIVE=true so orchestrators that rely on a long-lived process do not stop the container.
+KEEP_ALIVE="${KEEP_ALIVE:-true}"
+if [ "${KEEP_ALIVE}" = "true" ]; then
+  echo "[startup] KEEP_ALIVE=true -> entering supervise loop to keep container alive."
+  # Graceful shutdown handler
+  trap 'echo "[startup] Caught SIGTERM, forwarding to postgres (${POSTGRES_PID}) and exiting..."; \
+        if ps -p ${POSTGRES_PID} >/dev/null 2>&1; then kill ${POSTGRES_PID}; fi; exit 0' TERM INT
+
+  # Supervise loop: periodically verify pg_isready and sleep
+  while true; do
+    if ! sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
+      echo "[startup][warn] pg_isready reports not ready at ${PGHOST}:${PGPORT}. Will keep running and retry..."
+    fi
+    sleep 10
+  done
+fi
+
 # Clean success exit to prevent chained commands within this script context.
 exit 0
