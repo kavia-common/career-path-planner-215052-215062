@@ -4,6 +4,7 @@ This folder contains a simple Node.js-based database viewer intended for local d
 
 Important:
 - The career_planner_database container MUST NOT start this viewer. The database container should only start PostgreSQL and its init scripts.
+- ENABLE_DB_VIEWER defaults to false and is ignored by this container. Do not attempt to start Node here.
 - If you need to use the viewer locally, run it outside of the database container (or in a separate helper container).
 
 How to use locally (optional):
@@ -18,3 +19,4 @@ Notes:
 - The viewer requires 'express' and other dependencies which are listed in package.json.
 - If you see "MODULE_NOT_FOUND: './lib/express'", you are likely not in this folder or node_modules is missing. Run npm install in this directory.
 - Do not modify the database container to start this viewer automatically.
+- To use in a dedicated helper container, create a separate Dockerfile that runs only Node here; do not extend the DB container.

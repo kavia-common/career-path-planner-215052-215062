@@ -4,6 +4,7 @@ This folder contains the database schema, row-level security (RLS), and a data i
 
 Important:
 - This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
+- Healthcheck: use ./healthcheck.sh (psql ping). The container should exit non-zero only if PostgreSQL fails, never due to Node.
 - The optional Node.js "db_visualizer" is provided for local diagnostics and must NOT be auto-started from this container. If needed, run it manually from career_planner_database/db_visualizer in a separate process/container.
 
 ## Structure
