@@ -1,4 +1,1 @@
 5000
-# This file is read by the platform to discover the effective exposed port for readiness.
-# Explicit constant to avoid platforms that don't expand variables in metadata files.
-# Readiness is PostgreSQL-only on port 5000.
