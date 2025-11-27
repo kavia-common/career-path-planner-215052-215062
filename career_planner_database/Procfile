@@ -1,3 +1,6 @@
 # Intentionally left blank to prevent any process manager from starting Node/web servers.
 # The database container must only run PostgreSQL via startup.sh.
 # Do NOT add any web: or node: entries here.
+# If your platform requires a Procfile entry, prefer:
+# release: ./startup.sh
+# But by default we keep this inert to avoid accidental Node starts.

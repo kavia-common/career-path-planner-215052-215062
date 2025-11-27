@@ -6,7 +6,7 @@ Important:
 - This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
 - Idempotent startup: if PostgreSQL is already running, startup.sh skips start and performs a healthcheck, exiting 0 on success.
 - Healthcheck: use ./healthcheck.sh (psql ping). The container should exit non-zero only if PostgreSQL fails, never due to Node.
-- ENABLE_DB_VIEWER defaults to false. Even if set true, the DB container will not attempt to run Node; viewer must be launched manually elsewhere after npm install succeeds.
+- ENABLE_DB_VIEWER defaults to false and is hard-guarded; the DB container will never start Node.js (even if set to true).
 - The optional Node.js "db_visualizer" is provided for local diagnostics and must NOT be auto-started from this container. If needed, run it manually from career_planner_database/db_visualizer in a separate process/container.
 
 ## Structure

@@ -12,8 +12,11 @@ DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
 DB_PORT="${DB_PORT:-5000}"
 
-# Explicit guard: do NOT enable the viewer in this container by default
+# Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"
+if [ "${ENABLE_DB_VIEWER}" != "true" ]; then
+  export ENABLE_DB_VIEWER="false"
+fi
 
 echo "[startup] PostgreSQL-only startup initializing..."
 
@@ -57,7 +60,7 @@ fi
 # Ensure data dir initialized
 if [ ! -f "/var/lib/postgresql/data/PG_VERSION" ]; then
   echo "[startup] Initializing PostgreSQL data directory..."
-  sudo -u postgres "${PG_BIN}/initdb" -D /var/lib/postgresql/data"
+  sudo -u postgres "${PG_BIN}/initdb" -D /var/lib/postgresql/data
 fi
 
 # Start PostgreSQL (foregrounded in background)
