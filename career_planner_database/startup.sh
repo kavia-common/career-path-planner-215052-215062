@@ -11,10 +11,7 @@
 set -u
 IFS=$' \t\n'
 
-# Defensive guard: if this script is being chained in an orchestrator like:
-#   sudo ./startup.sh && cd db_visualizer && npm start
-# We explicitly print a guard notice. This script itself does not start Node and
-# will exit 0 cleanly after its own work; any chained Node commands are out-of-scope.
+# Defensive guard message
 if [ "${DISABLE_CHAINED_CMDS:-true}" = "true" ]; then
   echo "[startup] Defensive guard enabled (DISABLE_CHAINED_CMDS=true). Do not chain Node viewer commands after startup.sh."
 fi
@@ -23,6 +20,8 @@ DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
 DB_PORT="${DB_PORT:-5000}"
+export PGPORT="${PGPORT:-${DB_PORT}}"
+PGHOST="127.0.0.1"
 
 # Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"
@@ -43,13 +42,13 @@ echo "[startup] Found PostgreSQL version: ${PG_VERSION}"
 
 # Healthcheck helper
 psql_ping() {
-  PGPASSWORD="${DB_PASSWORD}" "${PG_BIN}/psql" -h localhost -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1
+  PGPASSWORD="${DB_PASSWORD}" "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" >/dev/null 2>&1
   return $?
 }
 
 # If Postgres is already running, do not try to start it again (idempotent behavior)
-if sudo -u postgres "${PG_BIN}/pg_isready" -p "${DB_PORT}" >/dev/null 2>&1; then
-  echo "[startup] PostgreSQL already running on port ${DB_PORT}. Performing healthcheck..."
+if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
+  echo "[startup] PostgreSQL already running on port ${PGPORT}. Performing healthcheck..."
   if ! psql_ping; then
     echo "[startup][ERROR] PostgreSQL is running but psql connectivity to ${DB_NAME} as ${DB_USER} failed."
     exit 2
@@ -59,8 +58,8 @@ if sudo -u postgres "${PG_BIN}/pg_isready" -p "${DB_PORT}" >/dev/null 2>&1; then
 fi
 
 # Secondary check by process grep for robustness
-if pgrep -fa "postgres.*-p ${DB_PORT}" >/dev/null 2>&1; then
-  echo "[startup] Detected postgres process on port ${DB_PORT}. Verifying connectivity..."
+if pgrep -fa "postgres.*-p ${PGPORT}" >/dev/null 2>&1; then
+  echo "[startup] Detected postgres process on port ${PGPORT}. Verifying connectivity..."
   if ! psql_ping; then
     echo "[startup][ERROR] PostgreSQL process detected but psql connectivity failed."
     exit 2
@@ -80,7 +79,7 @@ fi
 
 # Start PostgreSQL (foregrounded in background)
 echo "[startup] Starting PostgreSQL server..."
-if ! sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${DB_PORT}" & then
+if ! sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${PGPORT}" & then
   echo "[startup][ERROR] failed to spawn postgres"
   exit 1
 fi
@@ -90,7 +89,7 @@ POSTGRES_PID=$!
 echo "[startup] Waiting for PostgreSQL to become ready..."
 ready=0
 for i in $(seq 1 20); do
-  if sudo -u postgres "${PG_BIN}/pg_isready" -p "${DB_PORT}" >/dev/null 2>&1; then
+  if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
     echo "[startup] PostgreSQL is ready."
     ready=1
     break
@@ -100,7 +99,7 @@ for i in $(seq 1 20); do
 done
 
 if [ "$ready" -ne 1 ]; then
-  echo "[startup][ERROR] PostgreSQL failed to become ready on port ${DB_PORT}"
+  echo "[startup][ERROR] PostgreSQL failed to become ready on port ${PGPORT}"
   # Ensure we don't leave orphan process if it started
   if ps -p ${POSTGRES_PID} >/dev/null 2>&1; then
     kill ${POSTGRES_PID} >/dev/null 2>&1 || true
@@ -110,9 +109,9 @@ fi
 
 # Create DB and role idempotently
 echo "[startup] Ensuring database and role exist..."
-sudo -u postgres "${PG_BIN}/createdb" -p "${DB_PORT}" "${DB_NAME}" >/dev/null 2>&1 || echo "[startup] Database '${DB_NAME}' already exists"
+sudo -u postgres "${PG_BIN}/createdb" -h "${PGHOST}" -p "${PGPORT}" "${DB_NAME}" >/dev/null 2>&1 || echo "[startup] Database '${DB_NAME}' already exists"
 
-sudo -u postgres "${PG_BIN}/psql" -p "${DB_PORT}" -d postgres <<EOF
+sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d postgres <<EOF
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_USER}') THEN
@@ -126,7 +125,7 @@ GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
 EOF
 
 # Ensure schema permissions
-sudo -u postgres "${PG_BIN}/psql" -p "${DB_PORT}" -d "${DB_NAME}" <<EOF
+sudo -u postgres "${PG_BIN}/psql" -h "${PGHOST}" -p "${PGPORT}" -d "${DB_NAME}" <<EOF
 GRANT USAGE, CREATE ON SCHEMA public TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${DB_USER};
@@ -138,16 +137,16 @@ GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO ${DB_USER};
 EOF
 
 # Save connection helper
-echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}" > db_connection.txt
+echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@${PGHOST}:${PGPORT}/${DB_NAME}" > db_connection.txt
 
 # Write inert viewer env for local-only use
 mkdir -p db_visualizer
 cat > db_visualizer/postgres.env <<EOF
-export POSTGRES_URL="postgresql://localhost:${DB_PORT}/${DB_NAME}"
+export POSTGRES_URL="postgresql://localhost:${PGPORT}/${DB_NAME}"
 export POSTGRES_USER="${DB_USER}"
 export POSTGRES_PASSWORD="${DB_PASSWORD}"
 export POSTGRES_DB="${DB_NAME}"
-export POSTGRES_PORT="${DB_PORT}"
+export POSTGRES_PORT="${PGPORT}"
 EOF
 
 # Final healthcheck
@@ -157,7 +156,7 @@ if ! psql_ping; then
 fi
 
 echo "[startup] PostgreSQL setup complete."
-echo "[startup] Database: ${DB_NAME} | User: ${DB_USER} | Port: ${DB_PORT}"
+echo "[startup] Database: ${DB_NAME} | User: ${DB_USER} | Port: ${PGPORT}"
 echo "[startup] Connection helper saved to db_connection.txt"
 echo "[startup] Viewer env saved to db_visualizer/postgres.env (viewer is NOT started here)."
 

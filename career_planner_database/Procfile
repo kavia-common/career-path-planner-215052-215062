@@ -1,1 +1,2 @@
 # Intentionally blank. Do not add web/node processes here.
+# Readiness is determined by PostgreSQL health on ${PGPORT:-5000}, not any Node/web port.

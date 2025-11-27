@@ -5,7 +5,7 @@ This folder contains the database schema, row-level security (RLS), and a data i
 Important:
 - This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
 - Idempotent startup: if PostgreSQL is already running, startup.sh skips start and performs a healthcheck, exiting 0 on success.
-- Healthcheck: use ./healthcheck.sh (psql ping). The container should exit non-zero only if PostgreSQL fails, never due to Node.
+- Healthcheck: use ./healthcheck.sh (pg_isready → psql) targeting 127.0.0.1:${PGPORT:-5000}. Readiness is based on the PostgreSQL port only; there is no check on 3020.
 - ENABLE_DB_VIEWER and RUN_IN_SEPARATE_CONTAINER both default to false. npm start in db_visualizer is a guarded no-op unless BOTH are true AND you run in a separate viewer container.
 - Defensive guard: startup.sh prints a guard notice, then exits 0; do NOT chain commands like `&& cd db_visualizer && npm start` after it in this container. This script ends with an explicit `exit 0`.
 - The optional Node.js "db_visualizer" is provided for local diagnostics only and must NOT be auto-started from this container. Use a separate container/process; npm start inside this container will no-op and exit 0.
