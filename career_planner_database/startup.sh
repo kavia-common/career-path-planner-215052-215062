@@ -6,7 +6,10 @@
 # - Clear exit codes: only fail when PostgreSQL is unhealthy or not found.
 # Guard note: Orchestrators should not chain Node viewer commands after this script.
 
-set -euo pipefail
+# Avoid globally aborting on any non-zero to prevent unrelated commands from
+# causing a non-zero propagation at script end. We will check errors explicitly.
+set -u
+IFS=$' \t\n'
 
 # Defensive guard: if this script is being chained in an orchestrator like:
 #   sudo ./startup.sh && cd db_visualizer && npm start
@@ -69,26 +72,34 @@ fi
 # Ensure data dir initialized
 if [ ! -f "/var/lib/postgresql/data/PG_VERSION" ]; then
   echo "[startup] Initializing PostgreSQL data directory..."
-  sudo -u postgres "${PG_BIN}/initdb" -D /var/lib/postgresql/data
+  if ! sudo -u postgres "${PG_BIN}/initdb" -D /var/lib/postgresql/data; then
+    echo "[startup][ERROR] initdb failed"
+    exit 1
+  fi
 fi
 
 # Start PostgreSQL (foregrounded in background)
 echo "[startup] Starting PostgreSQL server..."
-sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${DB_PORT}" &
+if ! sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${DB_PORT}" & then
+  echo "[startup][ERROR] failed to spawn postgres"
+  exit 1
+fi
 POSTGRES_PID=$!
 
 # Wait until ready
 echo "[startup] Waiting for PostgreSQL to become ready..."
+ready=0
 for i in $(seq 1 20); do
   if sudo -u postgres "${PG_BIN}/pg_isready" -p "${DB_PORT}" >/dev/null 2>&1; then
     echo "[startup] PostgreSQL is ready."
+    ready=1
     break
   fi
   echo "[startup] ... waiting (${i}/20)"
   sleep 2
 done
 
-if ! sudo -u postgres "${PG_BIN}/pg_isready" -p "${DB_PORT}" >/dev/null 2>&1; then
+if [ "$ready" -ne 1 ]; then
   echo "[startup][ERROR] PostgreSQL failed to become ready on port ${DB_PORT}"
   # Ensure we don't leave orphan process if it started
   if ps -p ${POSTGRES_PID} >/dev/null 2>&1; then
@@ -141,7 +152,7 @@ EOF
 
 # Final healthcheck
 if ! psql_ping; then
-  echo "[startup][ERROR] PostgreSQL healthcheck failed (psql ping)."
+  echo "[startup][ERROR] PostgreSQL healthcheck failed (psql ping)"
   exit 2
 fi
 
