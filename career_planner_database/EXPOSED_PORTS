@@ -1,1 +1,3 @@
 ${PGPORT:-5000}
+# This file is read by the platform to discover the effective exposed port for readiness.
+# It expands to PGPORT (default 5000). There are no references to 3020; readiness is PostgreSQL-only.

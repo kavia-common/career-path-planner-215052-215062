@@ -13,6 +13,7 @@ DB_PORT="${DB_PORT:-5000}"
 PGPORT="${PGPORT:-${DB_PORT}}"
 PGHOST="127.0.0.1"
 echo "[healthcheck] Checking PostgreSQL at ${PGHOST}:${PGPORT} (db=${DB_NAME} user=${DB_USER})"
+echo "[healthcheck] Readiness uses PGPORT=${PGPORT}. There is no check on port 3020."
 
 PG_VERSION=$(ls /usr/lib/postgresql/ 2>/dev/null | head -1)
 if [ -z "${PG_VERSION:-}" ]; then

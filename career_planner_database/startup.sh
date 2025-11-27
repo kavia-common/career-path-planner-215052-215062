@@ -23,6 +23,7 @@ DB_PORT="${DB_PORT:-5000}"
 export PGPORT="${PGPORT:-${DB_PORT}}"
 PGHOST="127.0.0.1"
 echo "[startup] Config: host=${PGHOST} port=${PGPORT} db=${DB_NAME} user=${DB_USER}"
+echo "[startup] Readiness target: PostgreSQL on ${PGHOST}:${PGPORT} (PGPORT). No readiness on port 3020."
 
 # Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"

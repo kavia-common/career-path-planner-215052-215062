@@ -1,3 +1,4 @@
 # Intentionally blank. Do not add web/node processes here.
 # Readiness is determined by PostgreSQL health on ${PGPORT:-5000} (host 127.0.0.1), not any Node/web port.
 # No references to port 3020 should exist; this container is PostgreSQL-only.
+# Container liveness after readiness is maintained by startup.sh when KEEP_ALIVE=true (default).
