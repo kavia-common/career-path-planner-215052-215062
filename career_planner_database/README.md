@@ -2,6 +2,10 @@
 
 This folder contains the database schema, row-level security (RLS), and a data ingestion utility to seed catalog data (roles, competencies, mappings, adjacency, and role cards) from the provided attachments.
 
+Important:
+- This container starts ONLY PostgreSQL and essential init scripts (see startup.sh).
+- The optional Node.js "db_visualizer" is provided for local diagnostics and must NOT be auto-started from this container. If needed, run it manually from career_planner_database/db_visualizer in a separate process/container.
+
 ## Structure
 - schema/
   - 001_init.sql — tables, enums, constraints

@@ -1,3 +1,7 @@
+/**
+ * Standalone development DB viewer server (Optional).
+ * Not started by the database container. Run manually from this directory if needed.
+ */
 const express = require('express');
 const path = require('path');
 const fs = require('fs');

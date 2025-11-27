@@ -1,0 +1,3 @@
+# This database container intentionally does not start any Node.js process.
+# Only PostgreSQL is launched via startup.sh.
+web: echo "No web process for database container"; sleep infinity
