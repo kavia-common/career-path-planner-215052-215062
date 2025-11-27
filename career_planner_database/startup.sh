@@ -4,6 +4,7 @@
 # - Starts ONLY PostgreSQL; never starts Node.js viewer.
 # - If Postgres is already running, skip start and perform healthcheck.
 # - Clear exit codes: only fail when PostgreSQL is unhealthy or not found.
+# - Adapts to platform-provided port (PORT/DATABASE_PORT/DB_PORT) and binds to 0.0.0.0 for preview envs.
 # Guard note: Orchestrators should not chain Node viewer commands after this script.
 
 # Avoid globally aborting on any non-zero to prevent unrelated commands from
@@ -20,16 +21,26 @@ DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
 
-# Explicit readiness constants to avoid platform env ambiguity
-READINESS_HOST="127.0.0.1"
-READINESS_PORT="5000"
+# Discover effective port: prefer platform-provided, fallback to 5000
+EFFECTIVE_PORT="${DATABASE_PORT:-}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-${DB_PORT:-}}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-${PORT:-}}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-5000}"
 
+# Listening host for postgres (server) and readiness host for clients
+LISTEN_HOST="${LISTEN_HOST:-0.0.0.0}"   # bind to all interfaces inside container for preview envs
+READINESS_HOST="127.0.0.1"              # client healthcheck target remains loopback
+
+# Export client env
 export PGHOST="${READINESS_HOST}"
-export PGPORT="${READINESS_PORT}"
+export PGPORT="${EFFECTIVE_PORT}"
 
-echo "[startup] READINESS_PORT=${READINESS_PORT}"
+# Emit port info for platform readiness
+echo "${EFFECTIVE_PORT}" > EXPOSED_PORTS 2>/dev/null || true
+
+echo "[startup] EFFECTIVE_PORT=${EFFECTIVE_PORT}"
 echo "[startup] Config: host=${PGHOST} port=${PGPORT} db=${DB_NAME} user=${DB_USER}"
-echo "[startup] Readiness target: PostgreSQL on ${PGHOST}:${PGPORT}. No readiness on port 3020."
+echo "[startup] Readiness target: PostgreSQL on ${PGHOST}:${PGPORT}. No readiness on any web port."
 
 # Explicit guard: do NOT enable or start the viewer in this container
 : "${ENABLE_DB_VIEWER:=false}"
@@ -40,13 +51,20 @@ fi
 echo "[startup] PostgreSQL-only startup initializing..."
 
 # Locate PostgreSQL
-PG_VERSION=$(ls /usr/lib/postgresql/ 2>/dev/null | head -1 || true)
+PG_VERSION=$(ls /usr/lib/postgresql/ 2>/dev/null | sort -r | head -1 || true)
 if [ -z "${PG_VERSION}" ]; then
   echo "[startup][ERROR] PostgreSQL binaries not found under /usr/lib/postgresql/"
   exit 127
 fi
 PG_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
 echo "[startup] Found PostgreSQL version: ${PG_VERSION}"
+
+# Ensure data directory ownership/permissions
+DATA_DIR="/var/lib/postgresql/data"
+if [ ! -d "${DATA_DIR}" ]; then
+  mkdir -p "${DATA_DIR}"
+fi
+chown -R postgres:postgres "${DATA_DIR}"
 
 # Healthcheck helper
 psql_ping() {
@@ -77,25 +95,47 @@ if pgrep -fa "postgres.*-p ${PGPORT}" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Ensure data dir initialized
-if [ ! -f "/var/lib/postgresql/data/PG_VERSION" ]; then
-  echo "[startup] Initializing PostgreSQL data directory..."
-  if ! sudo -u postgres "${PG_BIN}/initdb" -D /var/lib/postgresql/data; then
+# Initialize cluster if needed (as postgres user)
+if [ ! -f "${DATA_DIR}/PG_VERSION" ]; then
+  echo "[startup] Initializing PostgreSQL data directory at ${DATA_DIR} ..."
+  if ! sudo -u postgres "${PG_BIN}/initdb" -D "${DATA_DIR}"; then
     echo "[startup][ERROR] initdb failed"
     exit 1
   fi
+  # Configure pg_hba.conf with safe methods (no trust)
+  {
+    echo "local   all             all                                     scram-sha-256"
+    echo "host    all             all             127.0.0.1/32            scram-sha-256"
+    echo "host    all             all             ::1/128                 scram-sha-256"
+    # allow any IPv4 within container networking (adjustable via PG_HBA_CIDR)
+    echo "host    all             all             0.0.0.0/0               scram-sha-256"
+  } >> "${DATA_DIR}/pg_hba.conf"
+  chown postgres:postgres "${DATA_DIR}/pg_hba.conf"
 fi
 
-# Start PostgreSQL (foregrounded in background)
-echo "[startup] Starting PostgreSQL server on ${PGHOST}:${PGPORT}..."
-if ! sudo -u postgres "${PG_BIN}/postgres" -D /var/lib/postgresql/data -p "${PGPORT}" & then
+# Detect port availability
+if ss -ltn 2>/dev/null | grep -q ":${EFFECTIVE_PORT} "; then
+  echo "[startup][warn] Port ${EFFECTIVE_PORT} appears in use. If another DB is bound, ensure dynamic port assignment or set PORT env."
+fi
+
+# Start PostgreSQL with explicit listen and port; keep it in foreground for supervision
+echo "[startup] Starting PostgreSQL server (listen_addresses='*', port=${EFFECTIVE_PORT}) ..."
+if ! sudo -u postgres "${PG_BIN}/postgres" \
+    -D "${DATA_DIR}" \
+    -p "${EFFECTIVE_PORT}" \
+    -c "listen_addresses='*'" \
+    -c "password_encryption=scram-sha-256" \
+    -c "max_connections=100" \
+    -c "shared_buffers=128MB" \
+    -c "log_destination=stderr" \
+    -c "logging_collector=off" & then
   echo "[startup][ERROR] failed to spawn postgres"
   exit 1
 fi
 POSTGRES_PID=$!
 
 # Wait until ready with extended retries to avoid flapping
-echo "[startup] Waiting for PostgreSQL to become ready at ${PGHOST}:${PGPORT}..."
+echo "[startup] Waiting for PostgreSQL to become ready at ${PGHOST}:${PGPORT} ..."
 ready=0
 for i in $(seq 1 90); do
   if sudo -u postgres "${PG_BIN}/pg_isready" -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then

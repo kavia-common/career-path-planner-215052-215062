@@ -10,18 +10,22 @@ DB_NAME="${DB_NAME:-myapp}"
 DB_USER="${DB_USER:-appuser}"
 DB_PASSWORD="${DB_PASSWORD:-dbuser123}"
 
+# Determine effective port from env with safe fallback
+EFFECTIVE_PORT="${DATABASE_PORT:-}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-${DB_PORT:-}}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-${PORT:-}}"
+EFFECTIVE_PORT="${EFFECTIVE_PORT:-5000}"
+
 # Explicit readiness constants to avoid platform env ambiguity
 READINESS_HOST="127.0.0.1"
-READINESS_PORT="5000"
-
 export PGHOST="${READINESS_HOST}"
-export PGPORT="${READINESS_PORT}"
+export PGPORT="${EFFECTIVE_PORT}"
 
-echo "[healthcheck] READINESS_PORT=${READINESS_PORT}"
+echo "[healthcheck] READINESS_PORT=${PGPORT}"
 echo "[healthcheck] Checking PostgreSQL at ${PGHOST}:${PGPORT} (db=${DB_NAME} user=${DB_USER})"
-echo "[healthcheck] Readiness uses PGHOST=${PGHOST} PGPORT=${PGPORT}. There is no check on port 3020 or any web process."
+echo "[healthcheck] Readiness uses PGHOST=${PGHOST} PGPORT=${PGPORT}. There is no check on any web process."
 
-PG_VERSION=$(ls /usr/lib/postgresql/ 2>/dev/null | head -1)
+PG_VERSION=$(ls /usr/lib/postgresql/ 2>/dev/null | sort -r | head -1)
 if [ -z "${PG_VERSION:-}" ]; then
   echo "[healthcheck][ERROR] PostgreSQL client not found (version dir missing)"
   exit 2
